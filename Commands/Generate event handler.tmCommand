@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>beforeRunningCommand</key>
+	<string>nop</string>
+	<key>command</key>
+	<string>#!/usr/bin/env ruby -wKU
+
+require "#{ENV['TM_SUPPORT_PATH']}" + '/lib/exit_codes'
+require ENV['TM_BUNDLE_SUPPORT']+'/lib/flex_env'
+require 'strscan'
+require 'erb'
+
+class AS3CodeGeneration
+  
+  @line = ENV["TM_CURRENT_LINE"]
+  @doc = STDIN.read.strip
+  @soft_tabs = ENV["TM_SOFT_TABS"]
+  @tab_size = ENV["TM_TAB_SIZE"].to_i
+
+  
+  def self.event_handler_generator
+    output = ""
+    end_class_regex = /^\s*\}\s*\/\/\s*\bend_class\b/
+    add_event_regx = /^\s*(?:[a-z_$]\w*\.)*addEventListener\(\s*([A-Z]\w*)\.[A-Z][A-Z_]*,\s*(?:[A-Za-z]\w*?\.)?([a-z_$]\w*)/
+
+    # スニペットの初期化
+    handler_snippet =&lt;&lt;-EOL
+private function &lt;%=handler_name%&gt;(event:&lt;%=event_class%&gt;):void 
+{
+
+}
+EOL
+  
+    # 現在の行がイベントハンドラの定義とマッチしているか調べ、Eventクラス名とハンドラ名を抜き出す
+    if m = add_event_regx.match(@line)
+      event_class  = m[1]
+      handler_name = m[2]
+    else  
+      TextMate.exit_show_tool_tip "Not found 'Event Type' and 'handler name' in current line."
+    end
+    
+    # ドキュメントのスキャンをする準備をする
+    s = StringScanner.new(@doc)
+    
+    # クラス終わりのマークまでスキャンポインタをすすめ、マークよりも前の部分をoutputに付け加える
+    if s.scan_until(end_class_regex)
+      output += s.pre_match
+    else
+      TextMate.exit_show_tool_tip "Not found 'end_class' mark in document."
+    end
+    
+    # ハンドラを組み立てる
+    erb = ERB.new(handler_snippet)
+    b = binding
+    snippet = erb.result(b)
+
+	# クラスの終わりのインデントの深さを調べる
+	matched = s.matched.gsub(/\s*?\n/, "")
+    indent_depth = matched.slice(/^\s*/).length
+    
+    # 挿入するハンドラにインデントを付け加える
+	if @soft_tabs == 'YES'
+		snippet.gsub!(/^/, " " * (indent_depth + @tab_size) )
+	else
+		snippet.gsub!(/^/,  "\t" * (indent_depth + 1) )
+	end
+
+    #　ハンドラを出力に加える
+    output += "\n" # 改行しておく
+    output += snippet
+
+    # 残りの部分をoutputに付け加える
+    output += s.matched
+    output += s.post_match
+    self.add_import(output, event_class)
+  end
+
+  def self.add_import(doc, word)
+    pkg = /^\s*package\b\s*([\w+\.]*)/
+    cls = /^\s*(public|final)\s+(final|public)?\s*\bclass\b/
+    mta = /^\s*\[(Style|Bindable|Event|Embed|SWF)/
+    import = SourceTools.find_package(word)
+    cla    = import.split('.').pop()
+
+      
+    pre, imps, post = [], [], []
+    a = pre
+
+    doc.split("\n").each do |line|
+    a &lt;&lt; line
+    if line =~ pkg
+    	pkg = nil
+    	a = imps
+    elsif line =~ cls || line =~ mta
+    	cls = nil
+    	a = post
+    end
+    end
+
+    irgx = /^\s*import\s+#{import.gsub('.', '\.')}/
+    safe = 0
+    indent = ""
+
+    imps.each_with_index do |line,index|
+    if line =~ irgx		
+	TextMate.exit_replace_document(doc)
+    elsif line =~ /^(\s*)import\s+/
+    	indent = $1
+    	safe = index
+    end
+    end
+    
+    imps[safe] = "#{imps[safe]}\n#{indent}import #{import};"
+    TextMate.exit_replace_document(pre.join("\n")+"\n"+imps.join("\n")+"\n"+post.join("\n"))
+    
+  end
+
+end
+
+AS3CodeGeneration.event_handler_generator()
+</string>
+	<key>input</key>
+	<string>document</string>
+	<key>keyEquivalent</key>
+	<string>^!</string>
+	<key>name</key>
+	<string>Generate event handler</string>
+	<key>output</key>
+	<string>showAsTooltip</string>
+	<key>scope</key>
+	<string>source.actionscript.3</string>
+	<key>uuid</key>
+	<string>219A2737-C302-4D2C-8123-9453ED244BB7</string>
+</dict>
+</plist>
