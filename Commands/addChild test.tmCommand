@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>beforeRunningCommand</key>
+	<string>nop</string>
+	<key>command</key>
+	<string>#!/usr/bin/ruby -wKU
+
+lines = STDIN.readlines; #("ExampleApplication.as")
+
+new_line_pattern = /^\s*(?:var\s+)?([\w$]+)\s*(?:\:[A-Z]\w+)?\s*=\s*new\s*[A-Z]\w+\(.*?\)/
+
+start_on   = ENV["TM_LINE_NUMBER"].to_i 
+search_top = 1
+match_value = "_sprite" # default match string is "_sprite"
+
+start_on.downto(search_top) do |number|
+  if match_obj = lines[number-1].match(new_line_pattern) then
+    match_value =  match_obj[1]
+    break
+  end
+end
+
+print "addChild(${1:#{match_value}});"
+
+</string>
+	<key>fallbackInput</key>
+	<string>document</string>
+	<key>input</key>
+	<string>document</string>
+	<key>name</key>
+	<string>addChild</string>
+	<key>output</key>
+	<string>insertAsSnippet</string>
+	<key>scope</key>
+	<string>source.actionscript.3</string>
+	<key>tabTrigger</key>
+	<string>add</string>
+	<key>uuid</key>
+	<string>26EDA7BF-50FA-42BC-B729-9AE6D897D812</string>
+</dict>
+</plist>
